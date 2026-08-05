@@ -93,46 +93,38 @@ class IFCReader:
                     subDict["ifcElementTypeTag"] = ifcElementType.Tag
 
                 # 6) Materials (manual extraction approach)
-                associations = getattr(elem, "HasAssociations", []) or []
+                # Note: materials are often assigned on the element's Type
+                # (e.g. IfcDoorType) rather than on the instance itself, so we
+                # fall back to the type via should_inherit=True.
+                mat = element.get_material(elem, should_skip_usage=False, should_inherit=True)
                 materialNumber = 0
-                usedMaterials = []
-                for assoc in associations:
-                    mat = getattr(assoc, "RelatingMaterial", None)
-                    if not mat:
-                        continue
-
+                if mat:
                     try:
                         if mat.is_a('IfcMaterial'):
-                            mname = mat.Name
-                            if mname not in usedMaterials:
-                                usedMaterials.append(mname)
-                                materialNumber += 1
-                                subDict[f"Material_{str(materialNumber).zfill(3)}"] = mname
+                            materialNumber += 1
+                            subDict[f"Material_{str(materialNumber).zfill(3)}"] = mat.Name
 
                         elif mat.is_a('IfcMaterialList'):
                             for m in mat.Materials:
-                                if m.Name not in usedMaterials:
-                                    usedMaterials.append(m.Name)
-                                    materialNumber += 1
-                                    subDict[f"Material_{str(materialNumber).zfill(3)}"] = m.Name
+                                materialNumber += 1
+                                subDict[f"Material_{str(materialNumber).zfill(3)}"] = m.Name
 
                         elif mat.is_a('IfcMaterialLayerSetUsage'):
+                            # Every layer gets its own column, in stack order,
+                            # even if the same material repeats across layers
+                            # (e.g. symmetric assemblies, double membranes).
                             layerSet = getattr(mat, "ForLayerSet", None)
                             if layerSet and hasattr(layerSet, "MaterialLayers"):
                                 for lyr in layerSet.MaterialLayers:
                                     mname = lyr.Material.Name if lyr.Material else "UnnamedLayer"
-                                    if mname not in usedMaterials:
-                                        usedMaterials.append(mname)
-                                        materialNumber += 1
-                                        subDict[f"Material_{str(materialNumber).zfill(3)}"] = mname
-                                    # Se vuoi anche salvare spessore
+                                    materialNumber += 1
+                                    subDict[f"Material_{str(materialNumber).zfill(3)}"] = mname
                                     subDict[f"LayerThk_{str(materialNumber).zfill(3)}"] = lyr.LayerThickness
 
                         elif mat.is_a('IfcMaterialConstituentSet'):
                             constituents = getattr(mat, "MaterialConstituents", [])
                             for c in constituents:
-                                if c.Material and c.Material.Name not in usedMaterials:
-                                    usedMaterials.append(c.Material.Name)
+                                if c.Material:
                                     materialNumber += 1
                                     subDict[f"Material_{str(materialNumber).zfill(3)}"] = c.Material.Name
 
@@ -140,8 +132,7 @@ class IFCReader:
                             profSet = getattr(mat, "ForProfileSet", None)
                             if profSet and hasattr(profSet, "MaterialProfiles"):
                                 for mp in profSet.MaterialProfiles:
-                                    if mp.Material and mp.Material.Name not in usedMaterials:
-                                        usedMaterials.append(mp.Material.Name)
+                                    if mp.Material:
                                         materialNumber += 1
                                         subDict[f"Material_{str(materialNumber).zfill(3)}"] = mp.Material.Name
                                     # Se vuoi recuperare spessori da mp.Profile, dipende dal tipo di profilo, ecc.
