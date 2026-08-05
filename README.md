@@ -9,6 +9,13 @@ This extension has been developed by the ACPV ARCHITECTS in-house unit ACPVX. Th
 
 It's a initial work in progress repository which will be integrated with other nodes are they are developed
 
+## What's New in Version 2.1.0
+
+Bugfix release for the IFC Reader node:
+
+- Materials are now correctly extracted even when assigned on the element's Type (e.g. `IfcDoorType`) instead of the instance, which is common in IFC4/IFC4X3 exports
+- Fixed a bug where a material repeating across multiple layers of the same assembly (e.g. symmetric constructions, double membranes) would silently drop one layer and corrupt its thickness value; every layer now gets its own column
+
 ## What's New in Version 2.0.0
 
 This new version includes several major improvements:
